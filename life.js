@@ -1,505 +1,259 @@
-let rows = 15;
-let cols = 15;
-let playing = false;
+// ==============================================
+// NASTAVENÍ HRY
+// ==============================================
+let rows = 20;  // Počet řádků mřížky
+let cols = 20;  // Počet sloupců mřížky
+let playing = false;  // Je hra spuštěná? (true/false)
+let reproductionTime = 300;  // Rychlost hry v milisekundách
+let timer;  // Časovač pro automatické přehrávání
 
-let timer;
-let reproductionTime = 100;
-let rows = 15;
-let cols = 15;
-let playing = false;
-let timer = null;
-let generationSpeed = 300; // ms between generations
+let grid = new Array(rows);  // Aktuální stav hry (0 = mrtvá, 1 = živá)
+let nextgrid = new Array(rows);  // Příští generace (vypočítává se dopředu)
 
-let grid = new Array(rows);
-let nextgrid = new Array(rows);
-
+// ==============================================
+// SPUŠTĚNÍ PŘI NAČTENÍ STRÁNKY
+// ==============================================
 document.addEventListener('DOMContentLoaded', () => {
-  createTable();
-  initializeGrids();
-  resetGrids();
-  setupControlButtons();
+  createTable();  // Vytvoří HTML tabulku s buňkami
+  initializeGrids();  // Vytvoří 2D pole pro grid a nextgrid
+  resetGrids();  // Nastaví všechny buňky na mrtvé (0)
+  setupControlButtons();  // Připojí funkce k tlačítkům
 });
 
+// ==============================================
+// INICIALIZACE POLÍ
+// ==============================================
 function initializeGrids() {
-  for (let i = 0; i < rows; i++) {
-    grid[i] = new Array(cols);
-    nextgrid[i] = new Array(cols);
-  }
+    // Vytvoří 2D pole (pole polí) pro grid i nextgrid
+    for (let i = 0; i < rows; i++) {
+        grid[i] = new Array(cols);
+        nextgrid[i] = new Array(cols);
+    }
 }
 
 function resetGrids() {
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      grid[i][j] = 0;
-      nextgrid[i][j] = 0;
+    // Nastaví všechny buňky na 0 (mrtvé)
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            grid[i][j] = 0;
+            nextgrid[i][j] = 0;
+        }
     }
-  }
 }
 
+// ==============================================
+// VYTVOŘENÍ HTML TABULKY
+// ==============================================
 function createTable() {
-  let gridContainer = document.getElementById("gridContainer");
-  if (!gridContainer) {
-    console.error("Problem: no div for the grid table!");
-    return;
-  }
-  let table = document.createElement("table");
-
-  for (let i = 0; i < rows; i++) {
-    let tr = document.createElement("tr");
-    for (let j = 0; j < cols; j++) {
-      let cell = document.createElement("td");
-      cell.setAttribute("id", i + "_" + j);
-      cell.setAttribute("class", "dead");
-      cell.onclick = cellClickHandler;
-      tr.appendChild(cell);
+    // Najde div s id="gridContainer" v HTML
+    let gridContainer = document.getElementById("gridContainer");
+    if (!gridContainer) {
+        console.error("Problem: no div for the grid table!");
     }
-    table.appendChild(tr);
-  }
-  gridContainer.appendChild(table);
+    
+    // Vytvoří novou HTML tabulku
+    let table = document.createElement("table");
+
+    // Projde všechny řádky a sloupce
+    for (let i = 0; i < rows; i++) {
+        let tr = document.createElement("tr");  // Nový řádek <tr>
+        
+        for (let j = 0; j < cols; j++) {
+            let cell = document.createElement("td");  // Nová buňka <td>
+            cell.setAttribute("id", i + "_" + j);  // ID jako "5_10" (řádek_sloupec)
+            cell.setAttribute("class", "dead");  // CSS třída pro mrtvou buňku
+            cell.onclick = cellClickHandler;  // Co se stane při kliknutí
+            tr.appendChild(cell);  // Přidá buňku do řádku
+        }
+        table.appendChild(tr);  // Přidá řádek do tabulky
+    }
+    gridContainer.appendChild(table);  // Přidá tabulku do stránky
 }
 
+// ==============================================
+// KLIKÁNÍ NA BUŇKY
+// ==============================================
 function cellClickHandler() {
-  let rowcol = this.id.split("_");
-  let row = parseInt(rowcol[0], 10);
-  let col = parseInt(rowcol[1], 10);
+    // Rozdělí ID "5_10" na ["5", "10"]
+    let rowcol = this.id.split("_");
+    let row = (rowcol[0]);  // Řádek
+    let col = (rowcol[1]);  // Sloupec
 
-  let classes = this.getAttribute("class");
-  if (classes && classes.indexOf("live") > -1) {
-    this.setAttribute("class", "dead");
-    grid[row][col] = 0;
-  } else {
-    this.setAttribute("class", "live");
-    grid[row][col] = 1;
-  }
+    // Zjistí, jestli je buňka živá nebo mrtvá
+    let classes = this.getAttribute("class");
+    if (classes.indexOf("live") > -1) {
+        // Živá → Zabij ji
+        this.setAttribute("class", "dead");  // Změní CSS na mrtvou
+        grid[row][col] = 0;  // Nastaví hodnotu v poli na 0
+    }
+    else {
+        // Mrtvá → Oživ ji
+        this.setAttribute("class", "live");  // Změní CSS na živou
+        grid[row][col] = 1;  // Nastaví hodnotu v poli na 1
+    }
 }
 
+// ==============================================
+// NASTAVENÍ TLAČÍTEK
+// ==============================================
 function setupControlButtons() {
-  let startButton = document.querySelector("#start");
-  let clearButton = document.querySelector("#clear");
-  let randomButton = document.querySelector("#random");
+    // Najde tlačítka v HTML
+    let startButton = document.querySelector("#start");
+    let clearButton = document.querySelector("#clear");
+    let randomButton = document.querySelector("#random");
 
-  startButton.onclick = () => {
-    if (playing) {
-      playing = false;
-      startButton.innerHTML = "Continue";
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    } else {
-      playing = true;
-      startButton.innerHTML = "Pause";
-      play();
-    }
-  }
-
-  clearButton.onclick = () => {
-    playing = false;
-    startButton.innerHTML = "start";
-    if (timer) {
-      clearInterval(timer);
-      timer = null;
-    }
-    resetGrids();
-    updateView();
-  }
-
-  randomButton.onclick = () => {
-    randomizeGrid(0.35); // 35% filled by default
-  }
-}
-
-function play() {
-  if (timer) {
-    clearInterval(timer);
-  }
-  timer = setInterval(() => {
-    computeNextGen();
-    updateView();
-  }, generationSpeed);
-}
-
-function computeNextGen() {
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      applyRules(i, j);
-    }
-  }
-  copyNextGridToGrid();
-}
-
-function copyNextGridToGrid() {
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      grid[i][j] = nextgrid[i][j];
-      nextgrid[i][j] = 0;
-    }
-  }
-}
-
-function updateView() {
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      let cell = document.getElementById(i + "_" + j);
-      if (!cell) continue;
-      if (grid[i][j] == 1) {
-        cell.setAttribute("class", "live");
-      } else {
-        cell.setAttribute("class", "dead");
-      }
-    }
-  }
-}
-
-function randomizeGrid(prob = 0.3) {
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      grid[i][j] = Math.random() < prob ? 1 : 0;
-    }
-  }
-  updateView();
-}
-
-function applyRules(row, col) {
-  let numNeighbors = countNeighbors(row, col);
-  if (grid[row][col] == 1) {
-    if (numNeighbors < 2) {
-      nextgrid[row][col] = 0;
-    } else if (numNeighbors == 2 || numNeighbors == 3) {
-      nextgrid[row][col] = 1;
-    } else if (numNeighbors > 3) {
-      nextgrid[row][col] = 0;
-    }
-  } else if (grid[row][col] == 0) {
-    if (numNeighbors == 3) {
-      nextgrid[row][col] = 1;
-    } else {
-      nextgrid[row][col] = 0;
-    }
-  }
-}
-
-function countNeighbors(row, col) {
-  let count = 0;
-  if (row - 1 >= 0) {
-    if (grid[row - 1][col] == 1) count++;
-  }
-  if (row - 1 >= 0 && col - 1 >= 0) {
-    if (grid[row - 1][col - 1] == 1) count++;
-  }
-  if (row - 1 >= 0 && col + 1 < cols) {
-    if (grid[row - 1][col + 1] == 1) count++;
-  }
-  if (col - 1 >= 0) {
-    if (grid[row][col - 1] == 1) count++;
-  }
-  if (col + 1 < cols) {
-    if (grid[row][col + 1] == 1) count++;
-  }
-  if (row + 1 < rows) {
-    if (grid[row + 1][col] == 1) count++;
-  }
-  if (row + 1 < rows && col - 1 >= 0) {
-    if (grid[row + 1][col - 1] == 1) count++;
-  }
-  if (row + 1 < rows && col + 1 < cols) {
-    if (grid[row + 1][col + 1] == 1) count++;
-  }
-  console.log("bunka row " + row + " col " + col + " ma sousedu: " + count);
-  return count;
-}
-    sousedipocetpotrebalabelzrozeni.setAttribute("for", "sousedipocetpotreba");
-    sousedipocetpotrebalabelzrozeni.innerHTML = " Počet sousedů pro zrození: ";
-    sousedipocetpotrebalabelzrozeni.style.color = "white";
-    sousedipocetpotrebalabelzrozeni.style.fontSize = "1.2rem";
-    sousedipocetpotrebalabelzrozeni.style.fontFamily = "Arial, sans-serif";
-    sousedipocetpotrebalabelzrozeni.style.margin = "0 10px 0 20px";
-
-    
-    let sousedipocetpotrebazrozeni = controlsdiv.appendChild(document.createElement("input"));
-    sousedipocetpotrebazrozeni.setAttribute("type", "number");
-    sousedipocetpotrebazrozeni.setAttribute("value", minpocetsouseduprozrozeni);
-    sousedipocetpotrebazrozeni.setAttribute("id", "sousedipocetpotrebazrozeni");
-    sousedipocetpotrebazrozeni.setAttribute("class", "inputfield");
-    sousedipocetpotrebazrozeni.style.marginTop = "10px";
-    sousedipocetpotrebazrozeni.style.width = "60px";
-    sousedipocetpotrebazrozeni.addEventListener("input", () => {
-        if (sousedipocetpotrebazrozeni.value < 3){
-            sousedipocetpotrebazrozeni.value = 3;
-            minpocetsouseduprozrozeni = parseInt(sousedipocetpotrebazrozeni.value);
-        }
-        else{
-        minpocetsouseduprozrozeni = parseInt(sousedipocetpotrebazrozeni.value);
-        }
-    });
-
-    let maxsousedipocetpotrebalabelprozaniknuti = controlsdiv.appendChild(document.createElement("label"));
-    maxsousedipocetpotrebalabelprozaniknuti.setAttribute("for", "sousedipocetpotreba");
-    maxsousedipocetpotrebalabelprozaniknuti.innerHTML = "Maximální počet sousedů pro zánik: ";
-    maxsousedipocetpotrebalabelprozaniknuti.style.color = "white";
-    maxsousedipocetpotrebalabelprozaniknuti.style.fontSize = "1.2rem";
-    maxsousedipocetpotrebalabelprozaniknuti.style.fontFamily = "Arial, sans-serif";
-    maxsousedipocetpotrebalabelprozaniknuti.style.margin = "0 10px 0 20px";
-
-    let maxsousedipocetpotrebaprozaniknuti = controlsdiv.appendChild(document.createElement("input"));
-    maxsousedipocetpotrebaprozaniknuti.setAttribute("type", "number");
-    maxsousedipocetpotrebaprozaniknuti.setAttribute("value", maxpocetsouseduprozaniknuti);
-    maxsousedipocetpotrebaprozaniknuti.setAttribute("id", "sousedipocetpotrebaprozaniknuti");
-    maxsousedipocetpotrebaprozaniknuti.setAttribute("class", "inputfield");
-    maxsousedipocetpotrebaprozaniknuti.style.marginTop = "10px";
-    maxsousedipocetpotrebaprozaniknuti.style.width = "60px";
-
-    maxsousedipocetpotrebaprozaniknuti.addEventListener("input", () => {
-        if (maxsousedipocetpotrebaprozaniknuti.value < 3){
-            maxsousedipocetpotrebaprozaniknuti.value = 3;
-           maxpocetsouseduprozaniknuti = parseInt(maxsousedipocetpotrebaprozaniknuti.value);
-        }
-        else{
-        maxpocetsouseduprozaniknuti = parseInt(maxsousedipocetpotrebaprozaniknuti.value);
-        }
-    });
-    
-    let minsousedipocetpotrebalabelprozaniknuti = controlsdiv.appendChild(document.createElement("label"));
-    minsousedipocetpotrebalabelprozaniknuti.setAttribute("for", "sousedipocetpotreba");
-    minsousedipocetpotrebalabelprozaniknuti.innerHTML = " Minimální počet sousedů pro zánik: ";
-    minsousedipocetpotrebalabelprozaniknuti.style.color = "white";
-    minsousedipocetpotrebalabelprozaniknuti.style.fontSize = "1.2rem";
-    minsousedipocetpotrebalabelprozaniknuti.style.fontFamily = "Arial, sans-serif";
-    minsousedipocetpotrebalabelprozaniknuti.style.margin = "0 10px 0 20px"; 
-
-    let minsousedipocetpotrebaprozaniknuti = controlsdiv.appendChild(document.createElement("input"));
-    minsousedipocetpotrebaprozaniknuti.setAttribute("type", "number");
-    minsousedipocetpotrebaprozaniknuti.setAttribute("value", minpocetsouseduprozaniknuti);
-    minsousedipocetpotrebaprozaniknuti.setAttribute("id", "sousedipocetpotrebaprozaniknuti");
-    minsousedipocetpotrebaprozaniknuti.setAttribute("class", "inputfield");
-    minsousedipocetpotrebaprozaniknuti.style.marginTop = "10px";
-    minsousedipocetpotrebaprozaniknuti.style.width = "60px";
-
-    minsousedipocetpotrebaprozaniknuti.addEventListener("input", () => {
-        if (minsousedipocetpotrebaprozaniknuti.value < 2){
-            minsousedipocetpotrebaprozaniknuti.value = 2;
-           minpocetsouseduprozaniknuti = parseInt(minsousedipocetpotrebaprozaniknuti.value);
-        }
-        else{
-        minpocetsouseduprozaniknuti = parseInt(minsousedipocetpotrebaprozaniknuti.value);
-        }
-    });
-    
-    let minpocetproprelabel = controlsdiv.appendChild(document.createElement("label"));
-    minpocetproprelabel.setAttribute("for", "minpocetpropre");
-    minpocetproprelabel.innerHTML = " Minimální počet sousedů pro přežití: ";
-    minpocetproprelabel.style.color = "white";
-    minpocetproprelabel.style.fontSize = "1.2rem";
-    minpocetproprelabel.style.fontFamily = "Arial, sans-serif";
-    minpocetproprelabel.style.margin = "0 10px 0 20px";
-
-    let minpocetpropre = controlsdiv.appendChild(document.createElement("input"));;
-    minpocetpropre.setAttribute("type", "number");
-    minpocetpropre.setAttribute("value", minpocpropre);
-    minpocetpropre.setAttribute("id", "minpocetpropre");
-    minpocetpropre.setAttribute("class", "inputfield");
-    minpocetpropre.style.marginTop = "10px";
-    minpocetpropre.style.width = "60px";
-    minpocetpropre.addEventListener("input", () => {
-        if (minpocetpropre.value < 2){
-            minpocetpropre.value = 2;
-            minpocpropre = parseInt(minpocetpropre.value);
-        }
-        else{
-        minpocpropre = parseInt(minpocetpropre.value);
-        }
-    });
-
-    let maxpocetproprelabel = controlsdiv.appendChild(document.createElement("label"));
-    maxpocetproprelabel.setAttribute("for", "maxpocetpropre");
-    maxpocetproprelabel.innerHTML = " Maximální počet sousedů pro přežití: ";
-    maxpocetproprelabel.style.color = "white";
-    maxpocetproprelabel.style.fontSize = "1.2rem";
-    maxpocetproprelabel.style.fontFamily = "Arial, sans-serif";
-    maxpocetproprelabel.style.margin = "0 10px 0 20px";
-
-    let maxpocetpropre = controlsdiv.appendChild(document.createElement("input"));;
-    maxpocetpropre.setAttribute("type", "number");
-    maxpocetpropre.setAttribute("value", maxpocpropre);
-    maxpocetpropre.setAttribute("id", "maxpocetpropre");
-    maxpocetpropre.setAttribute("class", "inputfield");
-    maxpocetpropre.style.marginTop = "10px";
-    maxpocetpropre.style.width = "60px";
-    maxpocetpropre.addEventListener("input", () => {
-        if (maxpocetpropre.value < 3){
-            maxpocetpropre.value = 3;
-            maxpocpropre = parseInt(maxpocetpropre.value);
-        }
-        else{
-        maxpocpropre = parseInt(maxpocetpropre.value);
-        }
-    }); 
-    let inputfields = document.querySelectorAll(".inputfield");
-    inputfields.forEach(field => {
-        field.style.backgroundColor = "grey";
-        field.style.color = "white";
-        field.style.border = "1px solid white";
-        field.style.borderRadius = "5px";
-        field.style.padding = "5px";
-        field.style.fontSize = "1rem";
-    });
-  
-}
-
-function setupControlButtons() {
-
-    let startButton = document.querySelector('#start');
-    let clearButton = document.querySelector('#clear');
-    let rButton = document.querySelector('#random');
-
+    // START/STOP TLAČÍTKO
     startButton.onclick = () => {
         if (playing) {
-            console.log('Pause the Game');
+            // Pokud hra běží → Zastav ji
             playing = false;
-            startButton.innerHTML = 'continue';
+            startButton.innerHTML = "start";
+            clearTimeout(timer);  // Zastaví časovač
         } else {
-            console.log('Cont the game');
+            // Pokud hra neběží → Spusť ji
             playing = true;
-            startButton.innerHTML = 'pause';
-            play();
-        };
-    };
-
+            startButton.innerHTML = "stop";
+            play();  // Spustí herní smyčku
+        }
+    }
+    
+    // CLEAR TLAČÍTKO - vymaže vše
     clearButton.onclick = () => {
-        console.log("kliknul si na clear");
         playing = false;
         startButton.innerHTML = "start";
-        resetGrids();
-        updateView();
-       updateLiveCellCount();
-    };
-
-     rButton.onclick = () => {
-        for (let i = 0; i < rows; i++) {
-            for (let j = 0; j < cols; j++) {
-                grid[i][j] = Math.floor(Math.random() * 2);
-                var cell = document.getElementById(i + '_' + j);
-                if (grid[i][j] == 1) cell.setAttribute('class', 'live');
-                else cell.setAttribute('class', 'dead');
-            }
-        }
-        updateLiveCellCount();
+        clearTimeout(timer);  // Zastaví časovač
+        resetGrids();  // Nastaví všechny buňky na mrtvé
+        updateView();  // Překreslí obrazovku
+    }
+    
+    // RANDOM TLAČÍTKO - náhodně naplní mřížku
+    randomButton.onclick = () => {
+        playing = false;
+        startButton.innerHTML = "start";
+        clearTimeout(timer);  // Zastaví časovač
+        randomizeGrid();  // Náhodně vytvoří vzor
     }
 }
+
+// ==============================================
+// HLAVNÍ HERNÍ SMYČKA
+// ==============================================
 function play() {
-    console.log("Hra jede.");
-    computeNextGen();
-    updateLiveCellCount();
-     if (playing) {
+    computeNextGen();  // Vypočítá příští generaci podle pravidel
+    updateGrid();  // Přepne grid na nextgrid a překreslí
+    
+    // Pokud hra běží, znovu zavolej play() za 300ms
+    if (playing) {
         timer = setTimeout(play, reproductionTime);
     }
 }
 
+// ==============================================
+// VÝPOČET PŘÍŠTÍ GENERACE
+// ==============================================
 function computeNextGen() {
+  // Projde každou buňku v mřížce
   for (let i = 0; i < rows; i++) {
     for (let j = 0; j < cols; j++) {
-      applyRules(i, j);
+      applyRules(i, j);  // Aplikuje Conway's pravidla na tuto buňku
     }
   }
-  copyAndResetGrid();
-    updateView();
 }
 
-function updateLiveCellCount() {
-    let liveCellCount = 0;
-    for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-            if (grid[i][j] == 1) {
-                liveCellCount++;
-            }
-        }
-    }
-    let textgrid = document.querySelector("#textgrid h1");
-    textgrid.innerHTML = "Živé buňky: " + liveCellCount;
-}
-
-function copyAndResetGrid() {
-    for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-            grid[i][j] = nextGrid[i][j];
-            nextGrid[i][j] = 0;
-        }
-    }
-}
-
-function updateView() {
-    for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-            let cell = document.getElementById(i + '_' + j);
-            if (grid[i][j] == 0) {
-                cell.setAttribute('class', 'dead');
-            } else {
-                cell.setAttribute('class', 'live');
-            }
-        }
-    }
-}
-
+// ==============================================
+// CONWAY'S PRAVIDLA GAME OF LIFE
+// ==============================================
 function applyRules(row, col) {
-  let numNeighbors = countNeighbors(row, col);
+  let numNeighbors = countNeighbors(row, col);  // Spočítá živé sousedy (0-8)
+  
   if (grid[row][col] == 1) {
-    if (numNeighbors < minpocetsouseduprozaniknuti) {
-      nextGrid[row][col] = 0;
-    } else if (numNeighbors == minpocpropre || numNeighbors == maxpocpropre) {
-      nextGrid[row][col] = 1;
-    } else if (numNeighbors > maxpocetsouseduprozaniknuti) {
-      nextGrid[row][col] = 0;
+    // ŽIVÁ BUŇKA:
+    if (numNeighbors < 2 || numNeighbors > 3) {
+      nextgrid[row][col] = 0;  // Umře (samota nebo přelidnění) ☠️
+    } else {
+      nextgrid[row][col] = 1;  // Přežije (2 nebo 3 sousedé) ✅
     }
-  } else if (grid[row][col] == 0) {
-    if (numNeighbors == minpocetsouseduprozrozeni) {
-      nextGrid[row][col] = 1;
+  } else {
+    // MRTVÁ BUŇKA:
+    if (numNeighbors == 3) {
+      nextgrid[row][col] = 1;  // Narodí se (přesně 3 sousedé) 🐣
+    } else {
+      nextgrid[row][col] = 0;  // Zůstane mrtvá
     }
   }
 }
-
+// ==============================================
+// POČÍTÁNÍ ŽIVÝCH SOUSEDŮ
+// ==============================================
 function countNeighbors(row, col) {
   let count = 0;
-  if (row - 1 >= 0) {
-    if (grid[row - 1][col] == 1) count++;
+  
+  // Projde všechny 8 okolních buněk:
+  //  [ ][ ][ ]
+  //  [ ][X][ ]  <- X je naše buňka
+  //  [ ][ ][ ]
+  
+  for (let i = -1; i <= 1; i++) {      // -1, 0, 1 (nahoru, střed, dolů)
+    for (let j = -1; j <= 1; j++) {    // -1, 0, 1 (vlevo, střed, vpravo)
+      if (i === 0 && j === 0) continue;  // Přeskoč sebe (střed)
+      
+      let newRow = row + i;  // Spočítá souřadnice souseda
+      let newCol = col + j;
+      
+      // Zkontroluj, že soused je uvnitř mřížky (nepadneme ven)
+      if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
+        count += grid[newRow][newCol];  // Přičti 1 pokud je soused živý
+      }
+    }
   }
-  if (row - 1 >= 0 && col - 1 >= 0) {
-    if (grid[row - 1][col - 1] == 1) count++;
-  }
-  if (row - 1 >= 0 && col + 1 < cols) {
-    if (grid[row - 1][col + 1] == 1) count++;
-  }
-  if (col - 1 >= 0) {
-    if (grid[row][col - 1] == 1) count++;
-  }
-  if (col + 1 < cols) {
-    if (grid[row][col + 1] == 1) count++;
-  }
-  if (row + 1 < rows) {
-    if (grid[row + 1][col] == 1) count++;
-  }
-  if (row + 1 < rows && col - 1 >= 0) {
-    if (grid[row + 1][col - 1] == 1) count++;
-  }
-  if (row + 1 < rows && col + 1 < cols) {
-    if (grid[row + 1][col + 1] == 1) count++;
-  }
-  return count;
+  
+  return count;  // Vrátí počet živých sousedů (0-8)
 }
 
-function cellClickHandler() {
-    let rowcol = this.id.split("_");
-    let row = rowcol[0];
-    let col = rowcol[1];
+// ==============================================
+// AKTUALIZACE STAVU HRY
+// ==============================================
+function updateGrid() {
+  // Přepne nextgrid → grid (nová generace se stane aktuální)
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      grid[i][j] = nextgrid[i][j];  // Zkopíruje hodnoty
+      nextgrid[i][j] = 0;  // Vyčistí nextgrid pro příští generaci
+    }
+  }
+  updateView();  // Překreslí obrazovku
+}
 
-
-  let classes = this.getAttribute('class');
-  if (classes.indexOf('live') > -1) {
-    this.setAttribute('class', 'dead');
-    grid[row][col] = 0;
-    updateLiveCellCount();
-  } else {
-    this.setAttribute('class', 'live');
-    grid[row][col] = 1;
-    updateLiveCellCount();
+// ==============================================
+// PŘEKRESLENÍ OBRAZOVKY
+// ==============================================
+function updateView() {
+  // Projde všechny buňky a aktualizuje jejich vzhled
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      let cell = document.getElementById(i + "_" + j);  // Najde HTML element
+      if (grid[i][j] == 1) {
+        cell.setAttribute("class", "live");  // Živá → bílá barva
+      } else {
+        cell.setAttribute("class", "dead");  // Mrtvá → průhledná
+      }
+    }
   }
 }
+
+// ==============================================
+// NÁHODNÉ NAPLNĚNÍ MŘÍŽKY
+// ==============================================
+function randomizeGrid() {
+  resetGrids();  // Nejdřív vyčisti vše
+  
+  // Projde všechny buňky a náhodně je oživ
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      // Math.random() vrací náhodné číslo 0.0 - 1.0
+      // Pokud je > 0.7 (30% šance), buňka bude živá
+      grid[i][j] = Math.random() > 0.7 ? 1 : 0;
+    }
+  }
+  updateView();  // Překreslí obrazovku
+  } 
